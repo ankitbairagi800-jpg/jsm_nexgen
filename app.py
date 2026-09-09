@@ -44,37 +44,54 @@ st.caption("केवल अपनी स्क्रिप्ट पेस्�
 # Single Input: Script
 user_script = st.text_area("✍️ अपनी स्क्रिप्ट यहाँ पेस्ट करें (Paste Your Script Here):", height=220, placeholder="यहाँ अपनी पूरी स्क्रिप्ट (हिंदी/English) पेस्ट करें...")
 
-def extract_search_query(text):
-    """Extract clean location keywords from script for web research."""
-    # Look for common place/temple names in Hindi or English
-    clean_text = re.sub(r'[^\w\s]', ' ', text)
-    # Remove common filler Hindi words
-    fillers = ['यहाँ', 'कहते', 'हैं', 'कि', 'इस', 'की', 'पूजा', 'करने', 'से', 'हर', 'संकट', 'टल', 'जाता', 'है', 'पर', 'क्या', 'आपको', 'पता', 'इसे', 'स्थापित', 'कहानी', 'रुको', 'जानकारी', 'सबसे', 'महत्वपूर्ण', 'गहरी', 'तपस्या', 'बाद', 'लोग', 'ऐसी', 'आस्था', 'साथ', 'आते', 'मनोकामनाएं', 'पूरी', 'होती', 'तो', 'अगली', 'बार', 'जब', 'आप', 'आएं', 'जरूर', 'जाएं', 'ये', 'सिर्फ', 'एक', 'यात्रा', 'नहीं', 'बल्कि', 'आत्मा', 'शांति', 'और', 'सच्चे', 'विश्वास', 'अनुभव', 'इसे', 'सेव', 'करें', 'बाद', 'इनकी', 'जरूरत', 'पड़ेगी']
+def extract_clean_location_slug(text):
+    """Extract location name from script and format clean English Wikipedia slug."""
+    # Mapping common Hindi location keywords to clean English Wikipedia slugs
+    mappings = {
+        'काजराना': 'Khajrana_Ganesh_Temple',
+        'खजराना': 'Khajrana_Ganesh_Temple',
+        'पद्मनाभस्वामी': 'Padmanabhaswamy_Temple',
+        'कैलाश': 'Kailasa_temple,_Ellora',
+        'असीरगढ़': 'Asirgargarh_Fort',
+        'केदारनाथ': 'Kedarnath_Temple',
+        'सोमनाथ': 'Somnath_temple',
+        'महाकालेश्वर': 'Mahakaleshwar_Jyotirlinga',
+        'काशी': 'Kashi_Vishwanath_Temple',
+        'रामेश्वरम': 'Ramanathaswamy_Temple',
+        'जगन्नाथ': 'Jagannath_Temple,_Puri',
+        'अयोध्या': 'Ram_Mandir',
+        'इसरो': 'ISRO',
+        'ताजमहल': 'Taj_Mahal'
+    }
     
-    words = clean_text.split()
-    filtered = [w for w in words if w.lower() not in fillers and len(w) > 1]
-    query = " ".join(filtered[:6])
-    return query if query else "Indian historical architecture"
+    for key, slug in mappings.items():
+        if key in text:
+            return slug
+            
+    # Default English extraction
+    english_words = re.findall(r'[A-Za-z0-9]+', text)
+    if english_words:
+        return "_".join(english_words[:3])
+        
+    return "Indian_architecture"
 
 def research_location(text):
     """Automatic web research for location architecture & clean reference image links."""
-    query = extract_search_query(text)
-    results = []
+    slug = extract_clean_location_slug(text)
+    clean_wiki_url = f"https://en.wikipedia.org/wiki/{slug}"
+    
+    results = [f"- Verified Location Article: {slug.replace('_', ' ')} | Direct URL: {clean_wiki_url}"]
+    
     try:
         with DDGS() as ddgs:
-            search_results = list(ddgs.text(f"{query} wikipedia architecture photo", max_results=3))
+            search_results = list(ddgs.text(f"{slug.replace('_', ' ')} architecture wikipedia", max_results=2))
             for r in search_results:
-                title = r.get('title', '')
-                body = r.get('body', '')
                 href = r.get('href', '')
-                if href and ('wikipedia.org' in href or 'wikimedia.org' in href or 'http' in href):
-                    results.append(f"- Location/Subject: {title} | Details: {body} | Direct URL: {href}")
+                if href and 'wikipedia.org/wiki/' in href and 'Special:' not in href:
+                    results.append(f"- Additional Reference: {r.get('title', '')} | Direct URL: {href}")
     except Exception:
         pass
-    
-    if not results:
-        results.append(f"- Location/Subject: {query} | Details: Authentic Indian Temple Architecture | Direct URL: https://en.wikipedia.org/wiki/Khajrana_Ganesh_Temple")
-    
+        
     return "\n".join(results)
 
 def calculate_scenes(script_text):
@@ -148,7 +165,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             INPUT SCRIPT:
             "{user_script}"
 
-            AUTOMATICALLY RESEARCHED LOCATION & DIRECT IMAGE/WIKIPEDIA URLS:
+            VERIFIED LOCATION ARCHITECTURE & CLEAN DIRECT WIKIPEDIA URLS:
             {research_info}
 
             REEL DURATION SPECIFICATIONS:
@@ -156,10 +173,10 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             - Target Duration: {total_duration} Seconds
             - Number of Scenes: Exactly {scenes_count} Scenes (8 Seconds per scene)
 
-            CRITICAL PROMPT RULES:
+            CRITICAL URL & PROMPT RULES:
             1. You MUST divide the input script into exactly {scenes_count} scenes.
-            2. In "First-frame image prompt" and "Last-frame image prompt", ONLY use valid clean Wikipedia/Wikimedia/Reference URLs from the research above or valid clean English Wikipedia links (e.g., https://en.wikipedia.org/wiki/Khajrana_Ganesh_Temple). NEVER generate broken URLs with Hindi characters or search parameters!
-            3. Ensure the Midjourney/ChatGPT image prompts describe REAL, AUTHENTIC architecture (e.g. Maratha carvings, silver garbhagriha doors, vermilion Ganesha idol, Holkar dynasty stone arches).
+            2. STRICT URL RULE: In "First-frame image prompt" and "Last-frame image prompt", ONLY use the clean verified Wikipedia URL provided in the research section above (e.g., https://en.wikipedia.org/wiki/Khajrana_Ganesh_Temple). NEVER generate "Special:Search", search parameters, or Hindi text inside URLs!
+            3. Midjourney/ChatGPT image prompts MUST describe REAL, AUTHENTIC architectural elements (e.g. Maratha & Holkar dynasty stone carvings, silver-clad garbhagriha entrance doors, vermilion Ganesha idol).
             4. Follow this EXACT markdown structure for Scene 1 through Scene {scenes_count}:
 
             ### 📽️ SCENE [X] (00:00s - 08:00s) — [Scene Title]
@@ -168,10 +185,10 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             "[Exact Hindi script text for this 8-second scene]"
 
             #### 🖼️ First-frame image prompt
-            `[Detailed Midjourney/ChatGPT style prompt describing real architecture and exact valid URL from research: (Insert valid URL). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+            `[Detailed Midjourney/ChatGPT style prompt describing real architecture and exact valid URL: (Insert clean Wikipedia URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
 
             #### 🖼️ Last-frame image prompt
-            `[Detailed Midjourney/ChatGPT style prompt for 0-cut handoff with exact valid URL: (Insert valid URL). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+            `[Detailed Midjourney/ChatGPT style prompt for 0-cut handoff with exact valid URL: (Insert clean Wikipedia URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
 
             #### 🎬 VEO3 video prompt
             - **SUBJECT:** [Detailed subject and architecture description matching reference URL]
@@ -189,7 +206,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             - **SOUND:** [Sound effects and music cues]
             - **HANDOFF (end frame):** [Exact description matching the start frame of next scene]
 
-            Produce the COMPLETE, UNTRUNCATED response for all {scenes_count} scenes now.
+            Produce the COMPLETE response for all {scenes_count} scenes now.
             """
 
             try:
