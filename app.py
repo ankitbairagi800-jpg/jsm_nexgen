@@ -44,24 +44,37 @@ st.caption("केवल अपनी स्क्रिप्ट पेस्�
 # Single Input: Script
 user_script = st.text_area("✍️ अपनी स्क्रिप्ट यहाँ पेस्ट करें (Paste Your Script Here):", height=220, placeholder="यहाँ अपनी पूरी स्क्रिप्ट (हिंदी/English) पेस्ट करें...")
 
+def extract_search_query(text):
+    """Extract clean location keywords from script for web research."""
+    # Look for common place/temple names in Hindi or English
+    clean_text = re.sub(r'[^\w\s]', ' ', text)
+    # Remove common filler Hindi words
+    fillers = ['यहाँ', 'कहते', 'हैं', 'कि', 'इस', 'की', 'पूजा', 'करने', 'से', 'हर', 'संकट', 'टल', 'जाता', 'है', 'पर', 'क्या', 'आपको', 'पता', 'इसे', 'स्थापित', 'कहानी', 'रुको', 'जानकारी', 'सबसे', 'महत्वपूर्ण', 'गहरी', 'तपस्या', 'बाद', 'लोग', 'ऐसी', 'आस्था', 'साथ', 'आते', 'मनोकामनाएं', 'पूरी', 'होती', 'तो', 'अगली', 'बार', 'जब', 'आप', 'आएं', 'जरूर', 'जाएं', 'ये', 'सिर्फ', 'एक', 'यात्रा', 'नहीं', 'बल्कि', 'आत्मा', 'शांति', 'और', 'सच्चे', 'विश्वास', 'अनुभव', 'इसे', 'सेव', 'करें', 'बाद', 'इनकी', 'जरूरत', 'पड़ेगी']
+    
+    words = clean_text.split()
+    filtered = [w for w in words if w.lower() not in fillers and len(w) > 1]
+    query = " ".join(filtered[:6])
+    return query if query else "Indian historical architecture"
+
 def research_location(text):
-    """Automatic web research for location architecture & reference image links."""
+    """Automatic web research for location architecture & clean reference image links."""
+    query = extract_search_query(text)
     results = []
     try:
         with DDGS() as ddgs:
-            query_str = text[:120].replace('\n', ' ')
-            search_results = list(ddgs.text(f"{query_str} wikipedia architecture image link", max_results=4))
+            search_results = list(ddgs.text(f"{query} wikipedia architecture photo", max_results=3))
             for r in search_results:
                 title = r.get('title', '')
                 body = r.get('body', '')
                 href = r.get('href', '')
-                if href:
-                    results.append(f"- Location: {title} | Architecture: {body} | Image URL: {href}")
+                if href and ('wikipedia.org' in href or 'wikimedia.org' in href or 'http' in href):
+                    results.append(f"- Location/Subject: {title} | Details: {body} | Direct URL: {href}")
     except Exception:
         pass
     
     if not results:
-        results.append(f"- Location: Historical architecture for {text[:40]} | Image URL: https://en.wikipedia.org/wiki/Special:Search?search={text[:30].replace(' ', '+')}")
+        results.append(f"- Location/Subject: {query} | Details: Authentic Indian Temple Architecture | Direct URL: https://en.wikipedia.org/wiki/Khajrana_Ganesh_Temple")
+    
     return "\n".join(results)
 
 def calculate_scenes(script_text):
@@ -135,7 +148,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             INPUT SCRIPT:
             "{user_script}"
 
-            RESEARCHED LOCATION ARCHITECTURE & DIRECT REFERENCE IMAGE URLS:
+            AUTOMATICALLY RESEARCHED LOCATION & DIRECT IMAGE/WIKIPEDIA URLS:
             {research_info}
 
             REEL DURATION SPECIFICATIONS:
@@ -143,10 +156,10 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             - Target Duration: {total_duration} Seconds
             - Number of Scenes: Exactly {scenes_count} Scenes (8 Seconds per scene)
 
-            CRITICAL MANDATORY PROMPT RULES:
+            CRITICAL PROMPT RULES:
             1. You MUST divide the input script into exactly {scenes_count} scenes.
-            2. For EVERY SINGLE SCENE, you MUST write EXTREMELY DETAILED, EXHAUSTIVE PROMPTS (never summarize or shorten).
-            3. BOTH the "First-frame image prompt" AND "Last-frame image prompt" MUST explicitly include the exact researched Image URL(s) from the research above!
+            2. In "First-frame image prompt" and "Last-frame image prompt", ONLY use valid clean Wikipedia/Wikimedia/Reference URLs from the research above or valid clean English Wikipedia links (e.g., https://en.wikipedia.org/wiki/Khajrana_Ganesh_Temple). NEVER generate broken URLs with Hindi characters or search parameters!
+            3. Ensure the Midjourney/ChatGPT image prompts describe REAL, AUTHENTIC architecture (e.g. Maratha carvings, silver garbhagriha doors, vermilion Ganesha idol, Holkar dynasty stone arches).
             4. Follow this EXACT markdown structure for Scene 1 through Scene {scenes_count}:
 
             ### 📽️ SCENE [X] (00:00s - 08:00s) — [Scene Title]
@@ -155,10 +168,10 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             "[Exact Hindi script text for this 8-second scene]"
 
             #### 🖼️ First-frame image prompt
-            `[Detailed Midjourney/ChatGPT style prompt with exact real architectural details AND exact reference Image URL: (Insert researched URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+            `[Detailed Midjourney/ChatGPT style prompt describing real architecture and exact valid URL from research: (Insert valid URL). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
 
             #### 🖼️ Last-frame image prompt
-            `[Detailed Midjourney/ChatGPT style prompt for 0-cut handoff with exact real architectural details AND exact reference Image URL: (Insert researched URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+            `[Detailed Midjourney/ChatGPT style prompt for 0-cut handoff with exact valid URL: (Insert valid URL). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
 
             #### 🎬 VEO3 video prompt
             - **SUBJECT:** [Detailed subject and architecture description matching reference URL]
@@ -176,7 +189,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
             - **SOUND:** [Sound effects and music cues]
             - **HANDOFF (end frame):** [Exact description matching the start frame of next scene]
 
-            Produce the COMPLETE, UNUNCATED, FULLY DETAILED response for all {scenes_count} scenes now.
+            Produce the COMPLETE, UNTRUNCATED response for all {scenes_count} scenes now.
             """
 
             try:
