@@ -50,12 +50,19 @@ def research_location(text):
     try:
         with DDGS() as ddgs:
             query_str = text[:120].replace('\n', ' ')
-            search_results = list(ddgs.text(f"{query_str} wikipedia architecture image link", max_results=3))
+            search_results = list(ddgs.text(f"{query_str} wikipedia architecture image link", max_results=4))
             for r in search_results:
-                results.append(f"- {r.get('title')}: {r.get('body')} (Link: {r.get('href')})")
+                title = r.get('title', '')
+                body = r.get('body', '')
+                href = r.get('href', '')
+                if href:
+                    results.append(f"- Location: {title} | Architecture: {body} | Image URL: {href}")
     except Exception:
-        results.append("Standard historical architecture reference mode active.")
-    return "\n".join(results) if results else "Standard reference mode."
+        pass
+    
+    if not results:
+        results.append(f"- Location: Historical architecture for {text[:40]} | Image URL: https://en.wikipedia.org/wiki/Special:Search?search={text[:30].replace(' ', '+')}")
+    return "\n".join(results)
 
 def calculate_scenes(script_text):
     """Auto-calculate optimal duration and 8-second scenes count based on ElevenLabs Hindi speech speed (~2.5 words/sec)."""
@@ -77,7 +84,6 @@ def generate_with_best_model(prompt_text):
     except Exception:
         pass
 
-    # Priority list covering modern & legacy model names
     priority_order = [
         'gemini-3.6-flash',
         'gemini-3.5-flash',
@@ -96,7 +102,6 @@ def generate_with_best_model(prompt_text):
             if cand in av and av not in model_queue:
                 model_queue.append(av)
 
-    # Fallback to priority list if auto-list failed
     if not model_queue:
         model_queue = priority_order
 
@@ -123,30 +128,55 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
         with st.spinner("🔍 लोकेशन की ऑटो-रिसर्च और वास्तुकला डिटेल्स निकाली जा रही हैं..."):
             research_info = research_location(user_script)
         
-        with st.spinner("🎬 AI द्वारा प्रॉम्प्ट्स जनरेट हो रहे हैं..."):
+        with st.spinner("🎬 AI द्वारा विस्तृत प्रॉम्प्ट्स जनरेट हो रहे हैं..."):
             prompt_instruction = f"""
             You are a master AI Video Producer specializing in Google VEO 3, Midjourney, and 8-second multi-scene video reels.
 
             INPUT SCRIPT:
             "{user_script}"
 
-            AUTOMATIC WEB RESEARCHED LOCATION & ARCHITECTURE LINKS:
+            RESEARCHED LOCATION ARCHITECTURE & DIRECT REFERENCE IMAGE URLS:
             {research_info}
 
-            AUTO-CALCULATED REEL SPECIFICATIONS:
+            REEL DURATION SPECIFICATIONS:
             - Total Words: {words_count} words
             - Target Duration: {total_duration} Seconds
             - Number of Scenes: Exactly {scenes_count} Scenes (8 Seconds per scene)
 
-            CRITICAL AUTOMATION RULES:
-            1. Divide the script evenly into exactly {scenes_count} parts (~20-25 words per 8-second scene).
-            2. For EVERY scene (Scene 1 to Scene {scenes_count}), you MUST output:
-               - **VO Line**: The exact Hindi script portion for this 8s segment.
-               - **🖼️ First-frame image prompt**: Midjourney/ChatGPT style prompt containing exact location details + reference URLs from research.
-               - **🖼️ Last-frame image prompt**: Midjourney/ChatGPT style prompt ensuring 0-cut visual handoff to the next scene.
-               - **🎬 VEO3 video prompt**: Detailed VEO 3 prompt covering SUBJECT, SETTING, FRAMING, OBJECT DISAMBIGUATION, SCENE LAYOUT, MOTION ARC (0-8s), CAMERA, LIGHTING & COLOR, VOICEOVER SYNC, PERFORMANCE/EMOTION, PRODUCT DETAIL, ON-SCREEN TEXT, SOUND, and HANDOFF.
+            CRITICAL MANDATORY PROMPT RULES:
+            1. You MUST divide the input script into exactly {scenes_count} scenes.
+            2. For EVERY SINGLE SCENE, you MUST write EXTREMELY DETAILED, EXHAUSTIVE PROMPTS (never summarize or shorten).
+            3. BOTH the "First-frame image prompt" AND "Last-frame image prompt" MUST explicitly include the exact researched Image URL(s) from the research above!
+            4. Follow this EXACT markdown structure for Scene 1 through Scene {scenes_count}:
 
-            Format the entire output in clean markdown.
+            ### 📽️ SCENE [X] (00:00s - 08:00s) — [Scene Title]
+
+            **VO Line (ElevenLabs 8s):**
+            "[Exact Hindi script text for this 8-second scene]"
+
+            #### 🖼️ First-frame image prompt
+            `[Detailed Midjourney/ChatGPT style prompt with exact real architectural details AND exact reference Image URL: (Insert researched URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+
+            #### 🖼️ Last-frame image prompt
+            `[Detailed Midjourney/ChatGPT style prompt for 0-cut handoff with exact real architectural details AND exact reference Image URL: (Insert researched URL here). 9:16 vertical aspect ratio, 8k resolution, photorealistic]`
+
+            #### 🎬 VEO3 video prompt
+            - **SUBJECT:** [Detailed subject and architecture description matching reference URL]
+            - **SETTING:** [Environment, location background, navy-teal color grade]
+            - **FRAMING:** [0-4s and 4-8s shot framing]
+            - **OBJECT DISAMBIGUATION:** [Primary focal anchor vs secondary elements]
+            - **SCENE LAYOUT:** [Object placement in vertical 9:16 frame]
+            - **MOTION ARC (0-8s):** [Second-by-second breakdown: 0-2s, 2-5s, 5-8s motion]
+            - **CAMERA:** [Camera motion specs: dolly, pan, tilt, push-in]
+            - **LIGHTING & COLOR:** [Shadows, color grading, highlights]
+            - **VOICEOVER:** [Hindi VO line synced with specific timestamp triggers]
+            - **PERFORMANCE/EMOTION:** [Mood and tone]
+            - **PRODUCT DETAIL:** [Stone/carving/architectural crisp details]
+            - **ON-SCREEN TEXT:** [Synced bold Hindi captions]
+            - **SOUND:** [Sound effects and music cues]
+            - **HANDOFF (end frame):** [Exact description matching the start frame of next scene]
+
+            Produce the COMPLETE, UNUNCATED, FULLY DETAILED response for all {scenes_count} scenes now.
             """
 
             try:
