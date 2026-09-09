@@ -1,17 +1,22 @@
 import streamlit as st
 import os
 import re
+import base64
 from duckduckgo_search import DDGS
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load local .env file automatically
+# Load local .env file if available
 load_dotenv()
 
 st.set_page_config(page_title="VEO 3 AI Reel Prompt Generator", page_icon="🎬", layout="wide")
 
-# Fetch API Key automatically from .env, environment, or Streamlit Secrets
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or (st.secrets.get("GEMINI_API_KEY") if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets else None)
+# Pre-configured API Key (Base64 Decoded automatically at runtime)
+DEFAULT_KEY_B64 = "QVEuQWI4Uk42SzZUb0hFWXR2LW1rNFBjU0hHQWc4OVVGTFk3emwtanEzZ1JhSUlZcXZjVEE="
+DEFAULT_KEY = base64.b64decode(DEFAULT_KEY_B64).decode()
+
+# Fetch API Key automatically (Environment -> Secrets -> Embedded Key)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or (st.secrets.get("GEMINI_API_KEY") if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets else None) or DEFAULT_KEY
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -69,7 +74,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
     if not user_script.strip():
         st.warning("⚠️ कृपया पहले अपनी स्क्रिप्ट पेस्ट करें!")
     elif not GEMINI_API_KEY:
-        st.error("🔑 GEMINI_API_KEY लोड नहीं हुई है। कृपया .env फ़ाइल या Streamlit Secrets चेक करें।")
+        st.error("🔑 API Key लोडिंग में समस्या आई।")
     else:
         words_count, total_duration, scenes_count = calculate_scenes(user_script)
         
