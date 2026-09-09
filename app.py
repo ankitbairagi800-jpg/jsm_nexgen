@@ -15,11 +15,20 @@ st.set_page_config(page_title="VEO 3 AI Reel Prompt Generator", page_icon="🎬"
 DEFAULT_KEY_B64 = "QVEuQWI4Uk42SzZUb0hFWXR2LW1rNFBjU0hHQWc4OVVGTFk3emwtanEzZ1JhSUlZcXZjVEE="
 DEFAULT_KEY = base64.b64decode(DEFAULT_KEY_B64).decode()
 
-# Fetch API Key automatically (Environment -> Secrets -> Embedded Key)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or (st.secrets.get("GEMINI_API_KEY") if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets else None) or DEFAULT_KEY
+# Sidebar API Key Configuration
+with st.sidebar:
+    st.header("🔑 Gemini API Key Configuration")
+    user_key_input = st.text_input("Gemini API Key (starts with AIzaSy...):", value="", type="password", placeholder="Paste your API key here...")
+    st.info("💡 Get your free API Key in 10 seconds from [aistudio.google.com](https://aistudio.google.com/)")
+
+# Determine active API Key
+GEMINI_API_KEY = user_key_input.strip() or os.getenv("GEMINI_API_KEY") or (st.secrets.get("GEMINI_API_KEY") if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets else None) or DEFAULT_KEY
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        pass
 
 # Custom UI Styling
 st.markdown("""
@@ -32,7 +41,7 @@ st.markdown("""
 st.title("🎬 1-Click VEO 3 Master Reel Prompt Generator")
 st.caption("केवल अपनी स्क्रिप्ट पेस्ट करें — लोकेशन रिसर्च, 8-सेकंड ElevenLabs टाइमिंग, और VEO3 प्रॉम्प्ट्स 100% ऑटोमैटिक!")
 
-# Single Input: Only Script!
+# Single Input: Script
 user_script = st.text_area("✍️ अपनी स्क्रिप्ट यहाँ पेस्ट करें (Paste Your Script Here):", height=220, placeholder="यहाँ अपनी पूरी स्क्रिप्ट (हिंदी/English) पेस्ट करें...")
 
 def research_location(text):
@@ -44,7 +53,7 @@ def research_location(text):
             search_results = list(ddgs.text(f"{query_str} wikipedia architecture image link", max_results=3))
             for r in search_results:
                 results.append(f"- {r.get('title')}: {r.get('body')} (Link: {r.get('href')})")
-    except Exception as e:
+    except Exception:
         results.append("Standard historical architecture reference mode active.")
     return "\n".join(results) if results else "Standard reference mode."
 
@@ -57,24 +66,46 @@ def calculate_scenes(script_text):
     return words, total_duration, scenes_count
 
 def generate_with_best_model(prompt_text):
-    """Try top Gemini models in order of capability: gemini-1.5-pro -> gemini-2.0-flash -> gemini-1.5-flash."""
-    models_to_try = ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash']
+    """Dynamically discover available models and fallback gracefully."""
+    available_model_names = []
+    try:
+        models = genai.list_models()
+        for m in models:
+            if 'generateContent' in m.supported_generation_methods:
+                name = m.name.replace('models/', '')
+                available_model_names.append(name)
+    except Exception:
+        available_model_names = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-pro']
+
+    # Priority list
+    target_candidates = ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
+    model_queue = []
+    for cand in target_candidates:
+        for av in available_model_names:
+            if cand in av:
+                if av not in model_queue:
+                    model_queue.append(av)
+    for av in available_model_names:
+        if av not in model_queue:
+            model_queue.append(av)
+
+    if not model_queue:
+        model_queue = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+
     last_err = None
-    for model_name in models_to_try:
+    for m_name in model_queue:
         try:
-            model = genai.GenerativeModel(model_name)
+            model = genai.GenerativeModel(m_name)
             response = model.generate_content(prompt_text)
-            return response.text, model_name
+            return response.text, m_name
         except Exception as e:
             last_err = e
             continue
-    raise Exception(f"All models failed. Last error: {last_err}")
+    raise Exception(f"{last_err}")
 
 if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_container_width=True):
     if not user_script.strip():
         st.warning("⚠️ कृपया पहले अपनी स्क्रिप्ट पेस्ट करें!")
-    elif not GEMINI_API_KEY:
-        st.error("🔑 API Key लोडिंग में समस्या आई।")
     else:
         words_count, total_duration, scenes_count = calculate_scenes(user_script)
         
@@ -83,7 +114,7 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
         with st.spinner("🔍 लोकेशन की ऑटो-रिसर्च और वास्तुकला डिटेल्स निकाली जा रही हैं..."):
             research_info = research_location(user_script)
         
-        with st.spinner("🎬 सर्वश्रेष्ठ AI मॉडल (Gemini 1.5 Pro) द्वारा प्रॉम्प्ट्स जनरेट हो रहे हैं..."):
+        with st.spinner("🎬 AI द्वारा प्रॉम्प्ट्स जनरेट हो रहे हैं..."):
             prompt_instruction = f"""
             You are a master AI Video Producer specializing in Google VEO 3, Midjourney, and 8-second multi-scene video reels.
 
@@ -125,3 +156,4 @@ if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_c
                 )
             except Exception as err:
                 st.error(f"❌ Error generating prompts: {err}")
+                st.warning("👉 **सलाह:** यदि आप अपनी खुद की API Key लगाना चाहते हैं, तो साइडबार (Left Sidebar) में अपनी मुफ़्त Gemini API Key (`AIzaSy...`) पेस्ट करें। [aistudio.google.com](https://aistudio.google.com/) से 10 सेकंड में मुफ़्त Key मिल जाती है।")
