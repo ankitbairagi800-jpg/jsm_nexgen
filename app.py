@@ -27,7 +27,7 @@ GEMINI_API_KEY = user_key_input.strip() or os.getenv("GEMINI_API_KEY") or (st.se
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
+    except Exception:
         pass
 
 # Custom UI Styling
@@ -66,7 +66,7 @@ def calculate_scenes(script_text):
     return words, total_duration, scenes_count
 
 def generate_with_best_model(prompt_text):
-    """Dynamically discover available models and fallback gracefully."""
+    """Dynamically discover available models and fallback gracefully across all Gemini versions."""
     available_model_names = []
     try:
         models = genai.list_models()
@@ -75,22 +75,30 @@ def generate_with_best_model(prompt_text):
                 name = m.name.replace('models/', '')
                 available_model_names.append(name)
     except Exception:
-        available_model_names = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-pro']
+        pass
 
-    # Priority list
-    target_candidates = ['gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
+    # Priority list covering modern & legacy model names
+    priority_order = [
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-flash-latest',
+        'gemini-pro-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-pro'
+    ]
+
     model_queue = []
-    for cand in target_candidates:
+    for cand in priority_order:
         for av in available_model_names:
-            if cand in av:
-                if av not in model_queue:
-                    model_queue.append(av)
-    for av in available_model_names:
-        if av not in model_queue:
-            model_queue.append(av)
+            if cand in av and av not in model_queue:
+                model_queue.append(av)
 
+    # Fallback to priority list if auto-list failed
     if not model_queue:
-        model_queue = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        model_queue = priority_order
 
     last_err = None
     for m_name in model_queue:
@@ -101,6 +109,7 @@ def generate_with_best_model(prompt_text):
         except Exception as e:
             last_err = e
             continue
+
     raise Exception(f"{last_err}")
 
 if st.button("🚀 जनरेट करें (Generate VEO 3 Prompts)", use_container_width=True):
